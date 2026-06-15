@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'ui/screens/home_screen.dart';
@@ -8,9 +7,6 @@ import 'ui/screens/auth_screen.dart';
 import 'state/game_state_notifier.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: ".env");
-
   runApp(
     const ProviderScope(
       child: DocentApp(),
