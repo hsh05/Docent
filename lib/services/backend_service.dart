@@ -49,7 +49,7 @@ class SessionHistoryItem {
 }
 
 class BackendService {
-  final String _baseUrl = 'https://docent-um0q.onrender.com';
+  final String _baseUrl = 'https://docent-um0q.onrender.com/api';
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
   String? _token;
 

@@ -39,7 +39,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     user = db.query(models.User).filter(models.User.username == form_data.username).first()
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
-            statu_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_401_UNAUTHORIZED, # FIXED: statu_code -> status_code
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
@@ -118,7 +118,8 @@ async def evaluate_answer(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    session = db.query(models.StudySession).filter(models.StudySession.id == session_id),
+    # FIXED: Removed the trailing comma at the end of this line
+    session = db.query(models.StudySession).filter(models.StudySession.id == session_id).first() 
     if not session or session.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to access this session")
     
@@ -154,7 +155,7 @@ async def evaluate_answer(
         )
         
         evaluation = json.loads(completion.choices[0].message.content)
-        is_accurate = evaluation.get("is_Accurate", False)
+        is_accurate = evaluation.get("is_accurate", False) # FIXED: Lowercase 'a'
         dialogue = evaluation.get("dialogue", "I'm a bit lost.")
         
         # Save to DB
@@ -170,13 +171,13 @@ async def evaluate_answer(
         tts_response = client.audio.speech.create(
             model="tts-1",
             voice="nova",
-            input="dialogue"
+            input=dialogue # FIXED: Removed quotes so it passes the variable
         )
         tts_response.stream_to_file(temp_tts_path)
         
         # Encode audio
         with open(temp_tts_path, "rb") as tts_file:
-            audio_base64: base64.b64encode(tts_file.read()).decode('utf-8')
+            audio_base64 = base64.b64encode(tts_file.read()).decode('utf-8') # FIXED: Changed colon to equals sign
             
         return {
             "is_accurate": is_accurate,
@@ -192,7 +193,7 @@ async def evaluate_answer(
         if os.path.exists(temp_tts_path):
             os.remove(temp_tts_path)
 
-@app.get("/api/users/{user_id}/history")
+@app.get("/api/users/history")
 async def get_user_history(
     current_user: models.User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -224,4 +225,4 @@ async def get_user_history(
             
         return {"history": history_data}
     except Exception as e:
-        raise HTTPException(status_code=500, details=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
