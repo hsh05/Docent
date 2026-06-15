@@ -44,4 +44,8 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+venv/
 .env
+__pycache__/
+*.db
+temp_*
