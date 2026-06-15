@@ -35,6 +35,14 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       return;
     }
 
+    if (password.length > 72) {
+      setState(() {
+        _errorMessage = "Password is too long (max 72 characters).";
+        _isLoading = false;
+      });
+      return;
+    }
+
     bool success;
     if (_isLogin) {
       success = await backend.login(username, password);

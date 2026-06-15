@@ -21,6 +21,9 @@ app = FastAPI(title="Docent API")
 
 @app.post("/api/auth/register", status_code=status.HTTP_201_CREATED)
 def register_user(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    if len(form_data.password) > 72:
+        raise HTTPException(status_code=400, detail="Password must be 72 characters or less")
+    
     # Check if user exists
     user = db.query(models.User).filter(models.User.username == form_data.username).first()
     if user:
