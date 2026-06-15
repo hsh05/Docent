@@ -1,51 +1,35 @@
-# Miscellaneous
-*.class
-*.log
-*.pyc
-*.swp
-.DS_Store
-.atom/
-.build/
-.buildlog/
-.history
-.svn/
-.swiftpm/
-migrate_working_dir/
+# ==========================================
+# Python Backend Exclusions
+# ==========================================
+# Block the virtual environment completely
+backend/venv/
+backend/ENV/
+backend/env/
 
-# IntelliJ related
-*.iml
-*.ipr
-*.iws
-.idea/
+# Block private keys and runtime databases
+backend/.env
+backend/*.db
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
+# Block compiled Python files and temporary audio buffers
+backend/__pycache__/
+backend/temp_*
+backend/*.pyc
 
-# Flutter/Dart/Pub related
-**/doc/api/
-**/ios/Flutter/.last_build_id
+
+# ==========================================
+# Flutter Frontend Exclusions
+# ==========================================
+# Built tools and local configuration files
 .dart_tool/
-.flutter-plugins-dependencies
+.packages
 .pub-cache/
 .pub/
-/build/
-/coverage/
+build/
 
-# Symbolication related
-app.*.symbols
+# Web/Desktop specific builds
+build/
+.dart_tool/
 
-# Obfuscation related
-app.*.map.json
-
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
-
-venv/
-.env
-__pycache__/
-*.db
-temp_*
+# Android/iOS specific local properties
+android/**/local.properties
+ios/.generated/
