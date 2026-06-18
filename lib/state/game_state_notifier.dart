@@ -175,4 +175,18 @@ class GameStateNotifier extends Notifier<GameState> {
   void resetGame() {
     state = GameState.initial();
   }
+
+  void startReviewSession(int sessionId, List<String> questions) {
+    state = state.copyWith(
+      status: GameStatus.listening,
+      sessionId: sessionId,
+      questionsList: questions,
+      currentQuestionIndex: 0,
+      currentQuestionStrikes: 0,
+      correctAnswers: 0,
+      score: 0,
+      answerResults: [],
+      aiMessage: questions.isNotEmpty ? questions.first : "No questions found.",
+    );
+  }
 }

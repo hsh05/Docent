@@ -183,4 +183,18 @@ class BackendService {
       return [];
     }
   }
+
+  Future<Map<String, dynamic>> fetchDailyReview() async {
+    final token = await _storage.read(key: 'jwt_token');
+    final response = await http.get(
+      Uri.parse('$_baseUrl/sessions/daily-review'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to fetch daily review');
+    }
+  }
 }
