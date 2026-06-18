@@ -10,7 +10,7 @@ from openai import OpenAI
 import models
 from database import engine, get_db
 from auth import get_password_hash, verify_password, create_access_token, get_current_user, ACCESS_TOKEN_EXPIRE_MINUTES
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -227,5 +227,64 @@ async def get_user_history(
             })
             
         return {"history": history_data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@app.get("/api/sessions/daily-review")
+async def generate_daily_review(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        failed_questions = db.query(models.QuestionResult).join(
+            models.StudySession, models.QuestionResult.session_id == models.StudySession.id
+        ).filter(
+            models.StudySession.user_id == current_user.id,
+            models.QuestionResult.passed == False
+        ).order_by(models.QuestionResult.id.desc()).limit(5).all()
+        
+        if not failed_questions:
+            return {
+                "message": "You are all caught up! No failed concepts to review today.",
+                "session_id": None,
+                "questions": []
+            }
+            
+        failed_concepts = [q.question_text for q in failed_questions]
+        concepts_string = "\n".join(failed_concepts)
+        
+        system_prompt = f"""You are an expert tutor building a daily review quiz.
+        The student previously failed to answer these specific questions correctly:
+        {concepts_string}
+        
+        Rephrase these concepts into brand new, distinct questions to test if they actually understand the underlying material now.
+        Return exactly {len(failed_concepts)} questions.
+        Return strictly in JSON format: {{"questions": ["New Q1", "New Q2"]}}"""
+        
+        completion = client.chat.completions.create(
+            model="gpt-4o",
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": system_prompt}
+            ]
+        )
+        
+        response_data = json.oads(completion.choices[0].message.content)
+        new_questions_list = response_data.get("questions", [])
+        
+        new_session = models.StudySession(
+            user_id=current_user.id,
+            topic_summary=f"Daily Spaced Repetition Review ({datetime.now().strftime('%b %d')})"
+        )
+        db.add(new_session)
+        db.commit()
+        db.refresh(new_session)
+        
+        return {
+            "session_id": new_session.id,
+            "transcript_summary": new_session.topic_summary,
+            "questions": new_questions_list
+        }
+        
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
