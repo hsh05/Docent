@@ -201,6 +201,25 @@ class BackendService {
     }
   }
 
+  Future<String> fetchWeaknessInsight() async {
+    if (_token == null) return "Keep studying to unlock insights.";
+
+    try {
+      var response = await http.get(
+        Uri.parse('$_baseUrl/users/weakness-insight'),
+        headers: {'Authorization': 'Bearer $_token'},
+      );
+
+      if (response.statusCode == 200) {
+        var jsonResponse = json.decode(response.body);
+        return jsonResponse['insight'] ?? "Keep studying to unlock insights.";
+      }
+      return "Data processing error.";
+    } catch (e) {
+      return "Connection error.";
+    }
+  }
+
   WebSocketChannel connectToSessionStream(int sessionId) {
     final wsUrl = Uri.parse('$_wsBaseUrl/sessions/$sessionId/stream');
 

@@ -45,16 +45,77 @@ class StatsScreen extends ConsumerWidget {
           final double averageScore = historyData.fold(0.0, (sum, item) => sum + item.score) / totalSessions;
 
           return RefreshIndicator(
-            onRefresh: () async => ref.refresh(historyProvider),
+            onRefresh: () async {
+              // Refresh both providers when the user pulls down
+              ref.refresh(historyProvider);
+              ref.refresh(weaknessProvider);
+            },
             child: CustomScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
+                
+                // ==========================================
+                // 1. THE MACRO VIEW: Aggregate Accuracy Stats
+                // ==========================================
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.all(24.0),
                     child: _buildOverviewCard(context, totalSessions, averageScore),
                   ),
                 ),
+
+                // ==========================================
+                // 2. THE DIAGNOSTIC VIEW: ML Weakness Clustering
+                // ==========================================
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 24.0, right: 24.0, bottom: 24.0),
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.secondary.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.secondary.withOpacity(0.3),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.auto_awesome, 
+                                color: Theme.of(context).colorScheme.secondary, 
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              const Text(
+                                "AI Diagnostic Insight",
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          
+                          // Dynamically load the clustering result
+                          ref.watch(weaknessProvider).when(
+                            loading: () => const LinearProgressIndicator(),
+                            error: (err, stack) => const Text("Unable to run diagnostic clustering."),
+                            data: (insight) => Text(
+                              insight,
+                              style: const TextStyle(fontSize: 14, height: 1.4),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+                // ==========================================
+                // 3. THE MICRO VIEW: Individual Past Sessions
+                // ==========================================
                 SliverPadding(
                   padding: const EdgeInsets.symmetric(horizontal: 24.0),
                   sliver: SliverList(
@@ -66,6 +127,10 @@ class StatsScreen extends ConsumerWidget {
                       childCount: historyData.length,
                     ),
                   ),
+                ),
+                
+                const SliverToBoxAdapter(
+                  child: SizedBox(height: 24),
                 ),
               ],
             ),

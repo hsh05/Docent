@@ -33,6 +33,11 @@ final historyProvider = FutureProvider<List<SessionHistoryItem>>((ref) async {
   return await backendService.getUserHistory(0); 
 });
 
+final weaknessProvider = FutureProvider<String>((ref) async {
+  final backendService = ref.read(backendServiceProvider);
+  return await backendService.fetchWeaknessInsight();
+});
+
 // Provide the game state notifier
 final gameStateProvider = NotifierProvider<GameStateNotifier, GameState>(() {
   return GameStateNotifier();
