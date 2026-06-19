@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-
-import 'ui/screens/home_screen.dart';
+import 'ui/screens/main_navigation_screen.dart'; 
 import 'ui/screens/auth_screen.dart';
 import 'state/game_state_notifier.dart';
 
@@ -80,6 +79,6 @@ class _AuthWrapperState extends ConsumerState<AuthWrapper> {
       );
     }
 
-    return _isAuthenticated ? const HomeScreen() : const AuthScreen();
+    return _isAuthenticated ? const MainNavigationScreen() : const AuthScreen();
   }
 }

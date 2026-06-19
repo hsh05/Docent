@@ -27,21 +27,28 @@ final backendServiceProvider = Provider<BackendService>((ref) {
   return BackendService();
 });
 
+// Provide the history service
+final historyProvider = FutureProvider<List<SessionHistoryItem>>((ref) async {
+  final backendService = ref.read(backendServiceProvider);
+  return await backendService.getUserHistory(0); 
+});
+
 // Provide the game state notifier
 final gameStateProvider = NotifierProvider<GameStateNotifier, GameState>(() {
   return GameStateNotifier();
 });
 
-class GameStateNotifier extends Notifier<GameState> {
-  int _reconnectAttempts = 0;
-  Timer? _reconnectTimer;
- 
+final bottomNavProvider = StateProvider<int>((ref) => 0);
+
+class GameStateNotifier extends Notifier<GameState> { 
   late AudioRecorderService _audioRecorder;
   late AudioPlayerService _audioPlayer;
   late BackendService _backendService;
   
   WebSocketChannel? _webSocketChannel;
   StreamSubscription? _micStreamSub;
+  int _reconnectAttempts = 0;
+  Timer? _reconnectTimer;
 
   @override
   GameState build() {
