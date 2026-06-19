@@ -1,7 +1,9 @@
 import os
 import json
 import base64
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, status
+import websockets
+import asyncio
+from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, status, WebSocket, WebSocketDisconnect
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
@@ -18,6 +20,8 @@ load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 app = FastAPI(title="Docent API")
+
+OPENAI_REALTIME_URL = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview"
 
 @app.post("/api/auth/register", status_code=status.HTTP_201_CREATED)
 def register_user(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
@@ -269,7 +273,7 @@ async def generate_daily_review(
             ]
         )
         
-        response_data = json.oads(completion.choices[0].message.content)
+        response_data = json.loads(completion.choices[0].message.content)
         new_questions_list = response_data.get("questions", [])
         
         new_session = models.StudySession(
@@ -288,3 +292,57 @@ async def generate_daily_review(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+@app.websocket("/api/sessions/{session_id}/stream")
+async def audio_stream_relay(websocket: WebSocket, session_id: int, db: Session = Depends(get_db)):
+    await websocket.accept()
+    
+    headers = {
+        "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}",
+        "OpenAI-Beta": "realtime=v1"
+    }
+    
+    try:
+        async with websockets.connect(OPENAI_REALTIME_URL, additional_headers=headers) as openai_ws:
+            async def receive_from_flutter():
+                try:
+                    while True:
+                        data = await websocket.receive_bytes()
+                        
+                        event = {
+                            "type": "input_audio_buffer.append",
+                            "audio": base64.b64encode(data).decode("utf-8")
+                        }
+                        await openai_ws.send(json.dumps(event))
+                except WebSocketDisconnect:
+                    print("Flutter client disconnected.")
+                    
+            async def receive_from_openai():
+                try:
+                    while True:
+                        response_str = await openai_ws.recv()
+                        response = json.loads(response_str)
+                        
+                        if response.get("type") == "response.audio.delta":
+                            audio_bytes = base64.b64decode(response["delta"])
+                            await websocket.send_bytes(audio_bytes)
+                            
+                        elif response.get("type") == "response.audio_transcript.done":
+                            transcript = response["transcript"]
+                            print(f"AI Transcript: {transcript}")
+                            
+                except websockets.exceptions.ConnectionClosed:
+                    print("OpenAI connection closed.")
+                    
+            await asyncio.gather(
+                receive_from_flutter(),
+                receive_from_openai()
+            )
+            
+    except Exception as e:
+        print(f"WebSocket Error: {e}")
+    finally:
+        try:
+            await websocket.close()
+        except RuntimeError:
+            pass
