@@ -304,6 +304,16 @@ async def audio_stream_relay(websocket: WebSocket, session_id: int, db: Session 
     
     try:
         async with websockets.connect(OPENAI_REALTIME_URL, additional_headers=headers) as openai_ws:
+            session_update = {
+                "type": "session.update",
+                "session": {
+                    "input_audio_transcription": {
+                        "model": "whisper-1"
+                    }
+                }
+            }
+            await openai_ws.send(json.dumps(session_update))
+            
             async def receive_from_flutter():
                 try:
                     while True:
@@ -327,9 +337,19 @@ async def audio_stream_relay(websocket: WebSocket, session_id: int, db: Session 
                             audio_bytes = base64.b64decode(response["delta"])
                             await websocket.send_bytes(audio_bytes)
                             
+                        elif response.get("type") == "conversation.item.input_audio_transcription.completed":
+                            user_text = response.get("transcript", "")
+                            await websocket.send_text(json.dumps({
+                                "event": "user_transcript",
+                                "text": user_text
+                            }))
+                            
                         elif response.get("type") == "response.audio_transcript.done":
-                            transcript = response["transcript"]
-                            print(f"AI Transcript: {transcript}")
+                            ai_delta = response.get("delta", "")
+                            await websocket.send_text(json.dumps({
+                                "event": "ai_transcript_delta",
+                                "text": ai_delta
+                            }))
                             
                 except websockets.exceptions.ConnectionClosed:
                     print("OpenAI connection closed.")
