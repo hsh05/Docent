@@ -3,6 +3,8 @@ import json
 import base64
 import websockets
 import asyncio
+import numpy as np
+from sklearn.cluster import KMeans
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, status, WebSocket, WebSocketDisconnect
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -292,6 +294,65 @@ async def generate_daily_review(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+@app.get("/api/users/weakness-insight")
+async def get_weakness_insight(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        failed_questions = db.query(models.QuestionResult).join(
+            models.StudySession, models.QuestionResult.session_id == models.StudySession.id
+        ).filter(
+            models.StudySession.user_id == current_user.id,
+            models.QuestionResult.passed == False
+        ).all()
+        
+        if len(failed_questions) < 4:
+            return {"insight": "Keep studying! We need a few more data points to calculate your core weaknesses."}
+        
+        failed_texts = [q.question_text for q in failed_questions]
+        
+        response = client.embeddings.create(
+            input=failed_texts,
+            model="text-embedding-3-small"
+        )
+        embeddings = np.array([data.embedding for data in response.data])
+        
+        num_clusters = min(3, len(failed_texts) // 2)
+        kmeans = KMeans(n_clusters=num_clusters, random_state=42, n_init="auto")
+        kmeans.fit(embeddings)
+        
+        labels = kmeans.labels_
+        largest_cluster_id = np.argmax(np.bincount(labels))
+        
+        worst_cluster_questions = [
+            failed_texts[i] for i, label in enumerate(labels) if label == largest_cluster_id
+        ]
+        
+        questions_block = "\n".join(worst_cluster_questions)
+        system_prompt = f"""You are an analytical tutor. The student failed these specific questions:
+        
+        {questions_block}
+        
+        Identify the underlying academic concept they are struggling with. 
+        Write a single, encouraging sentence diagnosing the exact weakness. 
+        Example: "You consistently struggle with the mechanical principles of projectile motion."
+        Return strictly in JSON: {{"diagnosis": "Your sentence here"}}"""
+        
+        completion = client.chat.completions.create(
+            model="gpt-4o",
+            response_format={"type": "json_object"},
+            messages=[{"role": "system", "content": system_prompt}]
+        )
+        
+        insight_data = json.loads(completion.choices[0].message.content)
+        
+        return {"insight": insight_data.get("diagnosis", "Review your recent incorrect answers to find patterns.")}
+    
+    except Exception as e:
+        print(f"ML Clustering Error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to calculate weakness clusters.")
     
 @app.websocket("/api/sessions/{session_id}/stream")
 async def audio_stream_relay(websocket: WebSocket, session_id: int, db: Session = Depends(get_db)):
