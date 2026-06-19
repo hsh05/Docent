@@ -79,7 +79,7 @@ async def start_session(
             )
         transcript = transcript_response.text
         
-        # Generaet questions
+        # Generate questions
         system_prompt = """You are a student preparing for an exam. 
         The user has just provided a long summary of the study material. 
         Analyze the content size and generate a list of questions to ask the user. 
@@ -405,7 +405,7 @@ async def audio_stream_relay(websocket: WebSocket, session_id: int, db: Session 
                                 "text": user_text
                             }))
                             
-                        elif response.get("type") == "response.audio_transcript.done":
+                        elif response.get("type") == "response.audio_transcript.delta":
                             ai_delta = response.get("delta", "")
                             await websocket.send_text(json.dumps({
                                 "event": "ai_transcript_delta",
