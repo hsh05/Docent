@@ -4,7 +4,8 @@ enum GameStatus {
   listening,
   processing,
   questioning,
-  gameOver
+  gameOver,
+  reconnecting
 }
 
 class GameState {
@@ -18,6 +19,7 @@ class GameState {
   final List<String> questionsList;
   final List<bool> answerResults;
   final String aiMessage;
+  final String userTranscript;
 
   const GameState({
     required this.status,
@@ -30,6 +32,7 @@ class GameState {
     required this.questionsList,
     required this.answerResults,
     required this.aiMessage,
+    required this.userTranscript,
   });
 
   factory GameState.initial() {
@@ -44,6 +47,7 @@ class GameState {
       questionsList: [],
       answerResults: [],
       aiMessage: "Ready to learn! What are we studying today?",
+      userTranscript: "",
     );
   }
 
@@ -62,6 +66,7 @@ class GameState {
     List<String>? questionsList,
     List<bool>? answerResults,
     String? aiMessage,
+    String? userTranscript,
   }) {
     return GameState(
       status: status ?? this.status,
@@ -74,6 +79,7 @@ class GameState {
       questionsList: questionsList ?? this.questionsList,
       answerResults: answerResults ?? this.answerResults,
       aiMessage: aiMessage ?? this.aiMessage,
+      userTranscript: userTranscript ?? this.userTranscript
     );
   }
 }

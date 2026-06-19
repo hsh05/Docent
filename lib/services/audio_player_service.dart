@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:audioplayers/audioplayers.dart';
 
 class AudioPlayerService {
@@ -13,6 +14,16 @@ class AudioPlayerService {
 
   Future<void> stopAudio() async {
     await _audioPlayer.stop();
+  }
+
+  Future<void> playStreamBytes(Uint8List bytes) async {
+    try {
+      await stopAudio();
+
+      await _audioPlayer.play(BytesSource(bytes));
+    } catch (e) {
+      print("Error playing stream bytes: $e");
+    }
   }
 
   void dispose() {

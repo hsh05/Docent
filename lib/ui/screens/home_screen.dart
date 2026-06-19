@@ -5,12 +5,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../state/game_state_notifier.dart';
 import '../../models/game_state.dart';
 import '../widgets/audio_visualizer.dart';
-import 'results_scren.dart';
+import 'results_screen.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
   @override
+
+
+
+
+
   Widget build(BuildContext context, WidgetRef ref) {
     ref.listen<GameState>(gameStateProvider, (previous, next) {
       if (next.status == GameStatus.gameOver && previous?.status != GameStatus.gameOver) {
@@ -25,6 +30,7 @@ class HomeScreen extends ConsumerWidget {
     final isProcessing = gameState.status == GameStatus.processing;
     final isSetup = gameState.status == GameStatus.setup || gameState.questionsList.isEmpty;
     final isGameOver = gameState.status == GameStatus.gameOver;
+    final isReconnecting = gameState.status == GameStatus.reconnecting;
 
     return Scaffold(
       appBar: AppBar(
@@ -121,11 +127,34 @@ class HomeScreen extends ConsumerWidget {
 
               const SizedBox(height: 32),
 
+              // Live User Captions
+              AnimatedOpacity(
+                duration: const Duration(milliseconds: 300),
+                opacity: gameState.userTranscript.isNotEmpty ? 1.0 : 0.0,
+                child: Padding(
+                  padding: const EdgeInsetsGeometry.symmetric(horizontal: 32.0),
+                  child: Text(
+                    '"${gameState.userTranscript}"',
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontStyle: FontStyle.italic,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
               // Interaction Button
               Column(
                 children: [
                   GestureDetector(
-                    onTap: isProcessing
+                    // Lock the button if processing or reconnecting
+                    onTap: (isProcessing || isReconnecting)
                         ? null
                         : isGameOver
                             ? () => ref.read(gameStateProvider.notifier).resetGame()
@@ -134,53 +163,61 @@ class HomeScreen extends ConsumerWidget {
                       duration: const Duration(milliseconds: 200),
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
-                        color: isGameOver
-                            ? Colors.blueAccent
-                            : isListening
-                                ? Colors.redAccent
-                                : Theme.of(context).colorScheme.primary,
+                        color: isReconnecting 
+                            ? Colors.orangeAccent // Warning color for dropped connection
+                            : isGameOver
+                                ? Colors.blueAccent
+                                : isListening
+                                    ? Colors.redAccent
+                                    : Theme.of(context).colorScheme.primary,
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: (isGameOver 
-                                ? Colors.blueAccent 
-                                : isListening 
-                                    ? Colors.redAccent 
-                                    : Theme.of(context).colorScheme.primary)
+                            color: (isReconnecting 
+                                ? Colors.orangeAccent
+                                : isGameOver 
+                                    ? Colors.blueAccent 
+                                    : isListening 
+                                        ? Colors.redAccent 
+                                        : Theme.of(context).colorScheme.primary)
                                 .withOpacity(0.4),
                             blurRadius: 20,
                             spreadRadius: 2,
                           )
                         ],
                       ),
-                      child: isProcessing
-                          ? const SizedBox(
-                              width: 32,
-                              height: 32,
-                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
-                            )
-                          : Icon(
-                              isGameOver 
-                                  ? Icons.refresh 
-                                  : isListening 
-                                      ? Icons.stop 
-                                      : Icons.mic,
-                              size: 32,
-                              color: Colors.white,
-                          ),
+                      child: isReconnecting
+                          ? const Icon(Icons.wifi_off, size: 32, color: Colors.white)
+                          : isProcessing
+                              ? const SizedBox(
+                                  width: 32,
+                                  height: 32,
+                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
+                                )
+                              : Icon(
+                                  isGameOver 
+                                      ? Icons.refresh 
+                                      : isListening 
+                                          ? Icons.stop 
+                                          : Icons.mic,
+                                  size: 32,
+                                  color: Colors.white,
+                              ),
                     ),
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    isGameOver
-                        ? "Tap to start a new session"
-                        : isListening
-                            ? "Tap to submit"
-                            : isProcessing
-                                ? "Processing audio..."
-                                : isSetup 
-                                    ? "Tap to explain your topic" 
-                                    : "Tap to unmute and explain",
+                    isReconnecting
+                        ? "Reconnecting to server..." // New UI Text
+                        : isGameOver
+                            ? "Tap to start a new session"
+                            : isListening
+                                ? "Tap to submit"
+                                : isProcessing
+                                    ? "Processing audio..."
+                                    : isSetup 
+                                        ? "Tap to explain your topic" 
+                                        : "Tap to unmute and explain",
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                 ],

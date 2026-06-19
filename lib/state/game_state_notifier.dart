@@ -1,4 +1,8 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 import '../services/audio_recorder_service.dart';
 import '../services/audio_player_service.dart';
 import '../services/backend_service.dart';
@@ -18,7 +22,7 @@ final audioPlayerServiceProvider = Provider<AudioPlayerService>((ref) {
   return service;
 });
 
-// Provide the OpenAI service
+// Provide the backend service
 final backendServiceProvider = Provider<BackendService>((ref) {
   return BackendService();
 });
@@ -29,15 +33,28 @@ final gameStateProvider = NotifierProvider<GameStateNotifier, GameState>(() {
 });
 
 class GameStateNotifier extends Notifier<GameState> {
+  int _reconnectAttempts = 0;
+  Timer? _reconnectTimer;
+ 
   late AudioRecorderService _audioRecorder;
   late AudioPlayerService _audioPlayer;
   late BackendService _backendService;
+  
+  WebSocketChannel? _webSocketChannel;
+  StreamSubscription? _micStreamSub;
 
   @override
   GameState build() {
     _audioRecorder = ref.read(audioServiceProvider);
     _audioPlayer = ref.read(audioPlayerServiceProvider);
     _backendService = ref.read(backendServiceProvider);
+    
+    // Clean up timers and streams when the provider is destroyed
+    ref.onDispose(() {
+      _reconnectTimer?.cancel();
+      _micStreamSub?.cancel();
+    });
+
     return GameState.initial();
   }
 
@@ -53,31 +70,50 @@ class GameStateNotifier extends Notifier<GameState> {
   }
 
   Future<void> startListening() async {
-    state = state.copyWith(status: GameStatus.listening, currentDecibels: -60.0);
+    state = state.copyWith(status: GameStatus.listening, currentDecibels: -60.0, userTranscript: "");
 
-    await _audioRecorder.startRecording(
-      onAmplitudeChanged: (db) {
-        if (state.status == GameStatus.listening) {
-          state = state.copyWith(currentDecibels: db);
-        }
-      },
-    );
+    if (state.sessionId == null) {
+      // Phase 1: SETUP MODE (Uses standard file recording)
+      await _audioRecorder.startRecording(
+        onAmplitudeChanged: (db) {
+          if (state.status == GameStatus.listening) {
+            state = state.copyWith(currentDecibels: db);
+          }
+        },
+      );
+    } else {
+      // Phase 2: ACTIVE GAMEPLAY (Uses WebSocket streaming)
+      _webSocketChannel = _backendService.connectToSessionStream(state.sessionId!);
+      _listenToWebSocket();
+
+      final micStream = await _audioRecorder.startAudioStream(
+        onAmplitudeChanged: (db) {
+          if (state.status == GameStatus.listening) {
+            state = state.copyWith(currentDecibels: db);
+          }
+        },
+      );
+
+      if (micStream != null) {
+        _micStreamSub = micStream.listen((audioChunk) {
+          _webSocketChannel?.sink.add(audioChunk);
+        });
+      }
+    }
   }
 
   Future<void> stopListeningAndProcess() async {
     state = state.copyWith(
       status: GameStatus.processing,
       currentDecibels: -60.0,
-      aiMessage: state.questionsList.isEmpty
-          ? "Preparing questions..."
-          : "Thinking...",
     );
 
-    final audioPath = await _audioRecorder.stopRecording();
+    if (state.sessionId == null) {
+      // Phase 1: SETUP MODE END (Upload file to REST API)
+      state = state.copyWith(aiMessage: "Preparing questions...");
+      final audioPath = await _audioRecorder.stopRecording();
 
-    if (audioPath != null) {
-      // Setup
-      if (state.questionsList.isEmpty) {
+      if (audioPath != null) {
         final setupData = await _backendService.startSession(audioPath);
 
         if (setupData != null && setupData.questions.isNotEmpty) {
@@ -97,79 +133,93 @@ class GameStateNotifier extends Notifier<GameState> {
             aiMessage: "I couldn't quite catch that. Could you summarize the topic again?",
           );
         }
-        return;
-      }
-
-      // Active Gameplay
-      final activeQuestion = state.questionsList[state.currentQuestionIndex];
-      final evaluation = await _backendService.evaluateAnswer(state.sessionId!, activeQuestion, audioPath);
-
-      if (evaluation != null) {
-        bool moveOnToNext = false;
-        int nextStrikes = evaluation.isAccurate ? 0 : state.currentQuestionStrikes + 1;
-        int nextCorrect = evaluation.isAccurate ? state.correctAnswers + 1 : state.correctAnswers;
-        String nextAiMessage = evaluation.dialogue;
-
-        List<bool> nextResults = List.from(state.answerResults);
-
-        if (evaluation.isAccurate) {
-          moveOnToNext = true;
-          nextResults.add(true);
-        } else if (nextStrikes >= 3) {
-          moveOnToNext = true;
-          nextResults.add(false);
-          nextAiMessage = "I'm just not getting this part. Let's skip it and move to the next topic.";
-        }
-
-        int nextIndex = state.currentQuestionIndex;
-        if (moveOnToNext) {
-          nextIndex++;
-          nextStrikes = 0;
-        }
-
-        if (nextIndex >= state.questionsList.length) {
-          double finalPercentage = (nextCorrect / state.questionsList.length) * 100;
-
-          if (finalPercentage >= 60.0) {
-            nextAiMessage = "Wow, I actually get it now! You're an amazing teacher!";
-          } else {
-            nextAiMessage = "I appreciate you trying to explain all of this, but honestly, I'm still really confused.";
-          }
-
-          state = state.copyWith(
-            status: GameStatus.gameOver,
-            aiMessage: nextAiMessage,
-            correctAnswers: nextCorrect,
-            currentQuestionStrikes: nextStrikes,
-            currentQuestionIndex: nextIndex,
-            answerResults: nextResults,
-          );
-        } else {
-          if (moveOnToNext) {
-            nextAiMessage += " Okay, next question: ${state.questionsList[nextIndex]}";
-          }
-
-          state = state.copyWith(
-            status: GameStatus.questioning,
-            aiMessage: nextAiMessage,
-            correctAnswers: nextCorrect,
-            currentQuestionStrikes: nextStrikes,
-            currentQuestionIndex: nextIndex,
-            answerResults: nextResults,
-            score: state.score + (evaluation.isAccurate ? 25 : 0),
-          );
-        }
-
-        await _audioPlayer.playAudio(evaluation.audioPath);
-
       } else {
-        // Fallback for API failure
-        state = state.copyWith(status: GameStatus.idle, aiMessage: "I had trouble understanding that. Could you repeat?");
+        state = state.copyWith(status: GameStatus.idle, aiMessage: "Oops, microphone error. Try again.");
       }
+      
     } else {
-      // Fallback for Mic failure
-      state = state.copyWith(status: GameStatus.idle, aiMessage: "Oops, microphone error. Try again.");
+      // Phase 2: ACTIVE GAMEPLAY END (Close pipes, wait for AI stream)
+      state = state.copyWith(aiMessage: "Thinking...");
+      
+      await _micStreamSub?.cancel();
+      await _audioRecorder.stopRecording(); 
+      await _webSocketChannel?.sink.close();
+      
+      // Keep status as questioning so the UI knows to render the AI's streaming response
+      state = state.copyWith(status: GameStatus.questioning);
     }
+  }
+
+  void _listenToWebSocket() {
+    _webSocketChannel?.stream.listen(
+      (message) {
+        _reconnectAttempts = 0;
+
+        if (message is String) {
+          final data = jsonDecode(message);
+          if (data['event'] == 'user_transcript') {
+            // Render the user's captions live
+            state = state.copyWith(userTranscript: data['text']);
+          } else if (data['event'] == 'ai_transcript_delta') {
+            // Clear the "Thinking..." text on the first word, then append
+            final currentMsg = state.aiMessage == "Thinking..." ? "" : state.aiMessage;
+            state = state.copyWith(aiMessage: currentMsg + data['text']);
+          }
+        } else {
+          // Stream the raw audio bytes through the speaker
+          _audioPlayer.playStreamBytes(message as Uint8List);
+        }
+      },
+      onDone: () => _handleDisconnect(),
+      onError: (err) => _handleDisconnect(),
+      cancelOnError: true,
+    );
+  }
+
+  void _handleDisconnect() {
+    if (state.status == GameStatus.gameOver || state.sessionId == null) return;
+
+    _audioRecorder.stopRecording();
+    _micStreamSub?.cancel();
+
+    state = state.copyWith(
+      status: GameStatus.reconnecting,
+      aiMessage: "Connection Lost. Attempting to reconnect...",
+      currentDecibels: -60.0,
+    );
+
+    _attemptReconnect();
+  }
+
+  void _attemptReconnect() {
+    if (_reconnectAttempts >= 5) {
+      state = state.copyWith(
+        status: GameStatus.idle,
+        aiMessage: "Connection completely failed. Please check your WI-Fi and restart the session."
+      );
+      return;
+    }
+
+    _reconnectTimer?.cancel();
+
+    final waitTime = Duration(seconds: 2 * (_reconnectAttempts + 1));
+
+    _reconnectTimer = Timer(waitTime, () {
+      _reconnectAttempts++;
+
+      try {
+        // Fixed: Added the ! operator to state.sessionId
+        _webSocketChannel = _backendService.connectToSessionStream(state.sessionId!);
+        _listenToWebSocket();
+
+        state = state.copyWith(
+          status: GameStatus.questioning,
+          aiMessage: "Reconnected! Where were we?",
+        );
+      } catch (e) {
+        _handleDisconnect();
+      }
+    });
   }
 
   void resetGame() {

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
 class SessionSetupResponse {
   final int sessionId;
@@ -50,6 +51,7 @@ class SessionHistoryItem {
 
 class BackendService {
   final String _baseUrl = 'https://docent-um0q.onrender.com/api';
+  final String _wsBaseUrl = 'wss://docent-um0q.onrender.com/api';
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
   String? _token;
 
@@ -185,10 +187,11 @@ class BackendService {
   }
 
   Future<Map<String, dynamic>> fetchDailyReview() async {
-    final token = await _storage.read(key: 'jwt_token');
+    if (_token == null) throw Exception('No authentication token found');
+
     final response = await http.get(
       Uri.parse('$_baseUrl/sessions/daily-review'),
-      headers: {'Authorization': 'Bearer $token'},
+      headers: {'Authorization': 'Bearer $_token'},
     );
 
     if (response.statusCode == 200) {
@@ -196,5 +199,13 @@ class BackendService {
     } else {
       throw Exception('Failed to fetch daily review');
     }
+  }
+
+  WebSocketChannel connectToSessionStream(int sessionId) {
+    final wsUrl = Uri.parse('$_wsBaseUrl/sessions/$sessionId/stream');
+
+    return WebSocketChannel.connect(
+      wsUrl,
+    );
   }
 }

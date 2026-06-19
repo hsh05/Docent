@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -6,6 +7,25 @@ class AudioRecorderService {
   final AudioRecorder _audioRecorder = AudioRecorder();
   StreamSubscription<Amplitude>? _amplitudeSubscription;
 
+  Future<Stream<Uint8List>?> startAudioStream({required Function(double) onAmplitudeChanged}) async {
+    if (await _audioRecorder.hasPermission()) {
+      
+      final audioStream = await _audioRecorder.startStream(
+        const RecordConfig(
+          encoder: AudioEncoder.pcm16bits,
+          sampleRate: 16000,
+          numChannels: 1,
+        ),
+      );
+
+      _amplitudeSubscription = _audioRecorder.onAmplitudeChanged(const Duration(milliseconds: 100)).listen((amp) {
+        onAmplitudeChanged(amp.current);
+      });
+
+      return audioStream;
+    }
+    return null;
+  }
 
   Future <void> startRecording({
     required Function(double db) onAmplitudeChanged,
