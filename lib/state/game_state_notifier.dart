@@ -207,7 +207,7 @@ class GameStateNotifier extends Notifier<GameState> {
     if (_reconnectAttempts >= 5) {
       state = state.copyWith(
         status: GameStatus.idle,
-        aiMessage: "Connection completely failed. Please check your WI-Fi and restart the session."
+        aiMessage: "Connection completely failed. Please check your Wi-Fi and restart the session."
       );
       return;
     }

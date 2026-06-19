@@ -145,7 +145,7 @@ class BackendService {
         var audioBytes = base64Decode(base64Audio);
 
         final tempDir = await getTemporaryDirectory();
-        final file = File('${tempDir.path}\ai_response_${DateTime.now().millisecondsSinceEpoch}.mp3');
+        final file = File('${tempDir.path}/ai_response_${DateTime.now().millisecondsSinceEpoch}.mp3');
         await file.writeAsBytes(audioBytes);
 
         return StudentEvaluation(

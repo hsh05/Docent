@@ -1,5 +1,4 @@
 import 'package:docent/ui/screens/auth_screen.dart';
-import 'package:docent/ui/screens/dashboard_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../state/game_state_notifier.dart';
@@ -20,7 +19,7 @@ class HomeScreen extends ConsumerWidget {
     ref.listen<GameState>(gameStateProvider, (previous, next) {
       if (next.status == GameStatus.gameOver && previous?.status != GameStatus.gameOver) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const ResultsScren()),
+          MaterialPageRoute(builder: (context) => const ResultsScreen()),
         );
       }
     });
@@ -48,16 +47,6 @@ class HomeScreen extends ConsumerWidget {
             }
           },
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.dashboard_rounded),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (context) => const DashboardScreen()),
-              );
-            },
-          )
-        ],
       ),
       body: SafeArea(
         child: Padding(
@@ -132,7 +121,7 @@ class HomeScreen extends ConsumerWidget {
                 duration: const Duration(milliseconds: 300),
                 opacity: gameState.userTranscript.isNotEmpty ? 1.0 : 0.0,
                 child: Padding(
-                  padding: const EdgeInsetsGeometry.symmetric(horizontal: 32.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 32.0),
                   child: Text(
                     '"${gameState.userTranscript}"',
                     textAlign: TextAlign.center,

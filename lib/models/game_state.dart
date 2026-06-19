@@ -75,7 +75,7 @@ class GameState {
       score: score ?? this.score,
       currentQuestionStrikes: currentQuestionStrikes ?? this.currentQuestionStrikes,
       correctAnswers: correctAnswers ?? this.correctAnswers,
-      currentQuestionIndex: currentQuestionStrikes ?? this.currentQuestionIndex,
+      currentQuestionIndex: currentQuestionIndex ?? this.currentQuestionIndex,
       questionsList: questionsList ?? this.questionsList,
       answerResults: answerResults ?? this.answerResults,
       aiMessage: aiMessage ?? this.aiMessage,

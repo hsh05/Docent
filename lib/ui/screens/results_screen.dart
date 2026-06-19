@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../state/game_state_notifier.dart';
 import 'home_screen.dart';
 
-class ResultsScren extends ConsumerWidget {
-  const ResultsScren({super.key});
+class ResultsScreen extends ConsumerWidget {
+  const ResultsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

@@ -10,7 +10,7 @@ class StatsScreen extends ConsumerWidget {
     final historyAsyncValue = ref.watch(historyProvider);
 
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.background,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         title: const Text("Your Progress"),
         centerTitle: true,
@@ -131,6 +131,68 @@ class StatsScreen extends ConsumerWidget {
                 
                 const SliverToBoxAdapter(
                   child: SizedBox(height: 24),
+                ),
+
+                // ==========================================
+                // 4. THE ACTION VIEW: Daily Review Button
+                // ==========================================
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        try {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("Analyzing your weak points..."),
+                              duration: Duration(seconds: 1)
+                            ),
+                          );
+
+                          final backend = ref.read(backendServiceProvider);
+                          final response = await backend.fetchDailyReview();
+
+                          if (!context.mounted) return;
+
+                          if (response['session_id'] == null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("You're all caught up! No failed concepts to review today."),
+                                backgroundColor: Color(0xFF4A148C),
+                              ),
+                            );
+                          } else {
+                            ref.read(gameStateProvider.notifier).startReviewSession(
+                              response['session_id'],
+                              List<String>.from(response['questions']),
+                            );
+
+                            ref.read(bottomNavProvider.notifier).state = 0;
+                          }
+                        } catch (e) {
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text("Error: Could not load review. $e"),
+                              backgroundColor: Colors.redAccent
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.psychology, color: Colors.white),
+                      label: const Text(
+                        "Start Daily Review",
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2D0C5E),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
