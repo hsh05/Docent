@@ -48,6 +48,7 @@ class AuthWrapper extends ConsumerStatefulWidget {
 class _AuthWrapperState extends ConsumerState<AuthWrapper> {
   bool _isLoading = true;
   bool _isAuthenticated = false;
+  String _loadingMessage = "Initializing Docent...";
 
   @override
   void initState() {
@@ -56,25 +57,56 @@ class _AuthWrapperState extends ConsumerState<AuthWrapper> {
   }
 
   Future<void> _checkAuth() async {
-    await ref.read(backendServiceProvider).loadToken();
+    final backend = ref.read(backendServiceProvider);
+    await backend.loadToken();
 
     const storage = FlutterSecureStorage();
     final token = await storage.read(key: 'auth_token');
 
     if (mounted) {
       setState(() {
-        _isAuthenticated = token != null;
-        _isLoading = false;
+        _loadingMessage = "Waking up cloud server...";
       });
+    }
+
+    String? wakeError = await backend.wakeUpServer();
+
+    if (mounted) {
+      if (wakeError != null) {
+        setState(() {
+          _loadingMessage = "Offline: $wakeError";
+        });
+      } else {
+        setState(() {
+          _isAuthenticated = token != null;
+          _isLoading = false;
+        });
+      }
     }
   }
   
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
+      return Scaffold(
+        backgroundColor: const Color(0xFF0F0C18),
         body: Center(
-          child: CircularProgressIndicator(color: Color(0xFF7C4DFF)),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const CircularProgressIndicator(color: Color(0xFF7C4DFF)),
+              const SizedBox(height: 24),
+              Text(
+                _loadingMessage,
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }

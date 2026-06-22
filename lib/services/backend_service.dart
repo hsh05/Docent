@@ -64,16 +64,20 @@ class BackendService {
     await _storage.delete(key: 'auth_token');
   }
 
-  Future<bool> register(String username, String password) async {
+  Future<String?> register(String username, String password) async {
     try {
       var response = await http.post(
         Uri.parse('$_baseUrl/auth/register'),
         body: {'username': username, 'password': password},
       );
-      return response.statusCode == 201;
+      
+      if (response.statusCode == 201) {
+        return null;
+      } else {
+        return "Error ${response.statusCode} : ${response.body}";
+      }
     } catch (e) {
-      print("Registration Error: $e");
-      return false;
+      return "Connection Error: $e";
     }
   }
 
@@ -218,6 +222,30 @@ class BackendService {
     } catch (e) {
       return "Connection error.";
     }
+  }
+
+  Future<String?> wakeUpServer() async {
+    String lastError = "Unknown network error";
+
+    for (int i = 0; i < 3; i++) {
+      try {
+        var response = await http
+            .get(Uri.parse('$_baseUrl/health'))
+            .timeout(const Duration(seconds: 60));
+
+        if (response.statusCode != 502 && response.statusCode != 503) {
+          return null;
+        } else {
+          lastError = "Server Error: ${response.statusCode}";
+        }
+      } catch (e) {
+        lastError = "Network Crash: $e";
+      }
+
+      await Future.delayed(const Duration(seconds: 2));
+    }
+
+    return lastError;
   }
 
   WebSocketChannel connectToSessionStream(int sessionId) {

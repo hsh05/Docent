@@ -15,11 +15,13 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   final _passwordController = TextEditingController();
   bool _isLogin = true;
   bool _isLoading = false;
+  String _loadingText = '';
   String _errorMessage = '';
 
   Future<void> _submit() async {
     setState(() {
       _isLoading = true;
+      _loadingText = _isLogin ? "Signing in..." : "Creating account...";
       _errorMessage = '';
     });
 
@@ -43,25 +45,33 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       return;
     }
 
-    bool success;
     if (_isLogin) {
-      success = await backend.login(username, password);
-    } else {
-      success = await backend.register(username, password);
-      if (success) {
-        success = await backend.login(username, password);
+      bool success = await backend.login(username, password);
+      if (success && mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+        );
+      } else {
+        setState(() {
+          _errorMessage = "Invalid credentials";
+          _isLoading = false;
+        });
       }
-    }
-
-    if (success && mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
-      );
     } else {
-      setState(() {
-        _errorMessage = _isLogin ? "Invalid credentials." : "Username might be taken.";
-        _isLoading = false;
-      });
+      String? registerError = await backend.register(username, password);
+      if (registerError == null) {
+        bool loginSuccess = await backend.login(username, password);
+        if (loginSuccess && mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const HomeScreen()),
+          );
+        }
+      } else {
+        setState(() {
+          _errorMessage = registerError;
+          _isLoading = false;
+        });
+      }
     }
   }
   
@@ -151,14 +161,24 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   ),
                 ),
                 child: _isLoading
-                    ? const SizedBox(
-                        height: 20, width: 20,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                      )
-                    : Text(
-                      _isLogin ? "Sign in" : "Create Account",
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-                    ),
+                    ? Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const SizedBox(
+                          height: 20, width: 20,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          _loadingText,
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white)
+                        ),
+                      ],
+                    )
+                  : Text(
+                    _isLogin ? "Sign in" : "Create Account",
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
               ),
               const SizedBox(height: 16),
 
