@@ -23,6 +23,10 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 app = FastAPI(title="Docent API")
 
+@app.get("/api/health")
+def health_check():
+    return {"status": "active"}
+
 OPENAI_REALTIME_URL = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview"
 
 @app.post("/api/auth/register", status_code=status.HTTP_201_CREATED)
